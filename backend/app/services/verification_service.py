@@ -1,0 +1,119 @@
+"""
+app/services/verification_service.py
+──────────────────────────────────────
+Mock OTP generation and verification.
+
+Fix 2 (OTP Expiry):
+    OTP expires 2 minutes after generation.
+    Expired OTP → verification fails → transaction decision updated to BLOCK.
+
+⚠️  SIMULATION ONLY — no real SMS/email integration.
+    In production, replace generate_otp() delivery with Twilio / SendGrid.
+"""
+import random
+import logging
+from datetime import datetime, timedelta
+
+from sqlalchemy.orm import Session
+
+from app.models.transaction import Transaction
+from app.schemas.verify import VerifyResponse
+
+logger = logging.getLogger(__name__)
+
+OTP_EXPIRY_MINUTES = 2
+
+
+def generate_otp() -> str:
+    """Generate a random 6-digit OTP string."""
+    return str(random.randint(100000, 999999))
+
+
+def verify_otp(
+    transaction_id: str,
+    provided_otp: str,
+    db: Session,
+) -> VerifyResponse:
+    """
+    Verify OTP for a VERIFY-decision transaction.
+
+    Steps:
+      1. Fetch transaction — 404 if not found
+      2. Check it's in VERIFY state — error if already ALLOW/BLOCK
+      3. Check OTP expiry (Fix 2) — expired → update to BLOCK, return failure
+      4. Compare OTP — mismatch → return failure
+      5. Match → mark otp_verified=True, return success
+    """
+    tx = db.query(Transaction).filter_by(transaction_id=transaction_id).first()
+
+    if not tx:
+        return VerifyResponse(
+            status="failure",
+            message=f"Transaction {transaction_id} not found.",
+            transaction_id=transaction_id,
+        )
+
+    if tx.decision != "VERIFY":
+        return VerifyResponse(
+            status="failure",
+            message=f"Transaction is not pending verification (decision={tx.decision}).",
+            transaction_id=transaction_id,
+        )
+
+    # Fix 2: OTP expiry check
+    if tx.otp_generated_at:
+        expiry = tx.otp_generated_at + timedelta(minutes=OTP_EXPIRY_MINUTES)
+        if datetime.utcnow() > expiry:
+            # Auto-escalate to BLOCK on expired OTP
+            tx.decision = "BLOCK"
+            db.add(tx)
+            db.commit()
+            logger.warning(f"OTP expired for {transaction_id} — escalated to BLOCK")
+            return VerifyResponse(
+                status="failure",
+                message="OTP expired (2-minute window). Transaction has been blocked.",
+                transaction_id=transaction_id,
+            )
+
+    # Track OTP attempts using an in-memory cache for demo stability without DB migrations
+    # (In production, this would be a column in the Transactions table: otp_attempts)
+    from app.db.cache import rcache
+    attempts_key = f"otp_attempts_{transaction_id}"
+    attempts = rcache.redis.get(attempts_key)
+    attempts = int(attempts) if attempts else 0
+
+    # OTP comparison
+    if tx.otp != provided_otp:
+        attempts += 1
+        rcache.redis.setex(attempts_key, 300, attempts) # expire after 5m
+
+        if attempts > 1:
+            # Escalated strictly to BLOCK after 1 retry
+            tx.decision = "BLOCK"
+            db.add(tx)
+            db.commit()
+            logger.warning(f"OTP max retries exceeded for {transaction_id} — escalated to BLOCK")
+            return VerifyResponse(
+                status="failure",
+                message="Maximum OTP attempts exceeded. Transaction has been blocked.",
+                transaction_id=transaction_id,
+            )
+        else:
+            return VerifyResponse(
+                status="failure",
+                message="Invalid OTP. You have 1 attempt remaining.",
+                transaction_id=transaction_id,
+            )
+
+    # Success
+    tx.otp_verified = True
+    tx.decision = "ALLOW"
+    db.add(tx)
+    db.commit()
+    logger.info(f"OTP verified successfully for {transaction_id}")
+
+    return VerifyResponse(
+        status="success",
+        message="OTP verified. Transaction approved.",
+        transaction_id=transaction_id,
+    )
