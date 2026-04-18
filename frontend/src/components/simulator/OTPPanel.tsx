@@ -14,9 +14,9 @@ interface OTPPanelProps {
 
 const OTPPanel: React.FC<OTPPanelProps> = ({ transactionId, demoOtp, onSuccess, onExpired }) => {
   const [digits, setDigits] = useState<string[]>(Array(6).fill(''))
-  const [timeLeft, setTimeLeft] = useState(30)
+  const [timeLeft, setTimeLeft] = useState(120)
   const [expired, setExpired] = useState(false)
-  const [attempts, setAttempts] = useState(3)
+  const [attempts, setAttempts] = useState(2)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
@@ -91,14 +91,14 @@ const OTPPanel: React.FC<OTPPanelProps> = ({ transactionId, demoOtp, onSuccess, 
   }
 
   const handleResend = () => {
-    setTimeLeft(30)
+    setTimeLeft(120)
     setExpired(false)
     setDigits(Array(6).fill(''))
     setError('')
     inputRefs.current[0]?.focus()
   }
 
-  const progressPct = (timeLeft / 30) * 100
+  const progressPct = (timeLeft / 120) * 100
 
   return (
     <motion.div

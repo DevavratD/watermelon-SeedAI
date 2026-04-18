@@ -43,23 +43,23 @@ def seed_demo_user(db: Session) -> None:
     from app.models.user import User
     from app.models.behavior_profile import UserBehaviorProfile
 
-    if db.query(User).filter_by(user_id="demo_user").first():
-        logger.info("demo_user already seeded — skipping")
+    if db.query(User).filter_by(user_id="demo_rahul").first():
+        logger.info("demo_rahul already seeded — skipping")
         return
 
-    db.add(User(user_id="demo_user"))
+    db.add(User(user_id="demo_rahul"))
     db.add(UserBehaviorProfile(
-        user_id="demo_user",
-        avg_amount=250.0,
+        user_id="demo_rahul",
+        avg_amount=350.0,
         std_amount=80.0,
         transaction_count=50,
-        frequent_locations=json.dumps(["Mumbai", "Pune"]),
-        active_hours=json.dumps(list(range(9, 19))),   # 09:00–18:00
+        frequent_locations=json.dumps(["New Delhi", "Pune"]),
+        active_hours=json.dumps(list(range(9, 23))),   # 09:00–22:00
         baseline_hourly_rate=1.2,
         last_updated=datetime.utcnow(),
     ))
     db.commit()
-    logger.info("✅ demo_user seeded (avg_amount=250, locations=[Mumbai, Pune])")
+    logger.info("✅ demo_rahul seeded (avg_amount=350, locations=[New Delhi, Pune])")
 
 
 def init_db() -> None:

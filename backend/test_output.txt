@@ -1,0 +1,25 @@
+﻿
+=================================================================
+  SeedAI Fraud Engine ù Pattern Tests
+=================================================================
+
+[SETUP] Resetting demo profiles...
+        Reset 4 demo profiles to clean baselines
+python : Traceback (most recent call last):
+At line:1 char:72
++ ... e(encoding='utf-8')" 2>&1; python test_fraud_patterns.py 2>&1 | Out-F ...
++                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent call last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "D:\Watermelon\backend\test_fraud_patterns.py", line 176, in <module>
+    run_tests()
+    ~~~~~~~~~^^
+  File "D:\Watermelon\backend\test_fraud_patterns.py", line 85, in run_tests
+    print("\n\u2500\u2500\u2500 SCENARIO 1: Safe Purchase (Baseline) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u
+2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\devav\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode characters in position 2-4: character maps to <undefined>

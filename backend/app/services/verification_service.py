@@ -75,17 +75,15 @@ def verify_otp(
                 transaction_id=transaction_id,
             )
 
-    # Track OTP attempts using an in-memory cache for demo stability without DB migrations
-    # (In production, this would be a column in the Transactions table: otp_attempts)
+    # Track OTP attempts using the in-memory cache store
     from app.db.cache import rcache
     attempts_key = f"otp_attempts_{transaction_id}"
-    attempts = rcache.redis.get(attempts_key)
-    attempts = int(attempts) if attempts else 0
+    attempts = rcache.store.get(attempts_key, 0)
 
     # OTP comparison
     if tx.otp != provided_otp:
         attempts += 1
-        rcache.redis.setex(attempts_key, 300, attempts) # expire after 5m
+        rcache.store[attempts_key] = attempts
 
         if attempts > 1:
             # Escalated strictly to BLOCK after 1 retry
@@ -95,17 +93,20 @@ def verify_otp(
             logger.warning(f"OTP max retries exceeded for {transaction_id} — escalated to BLOCK")
             return VerifyResponse(
                 status="failure",
+                verified=False,
                 message="Maximum OTP attempts exceeded. Transaction has been blocked.",
                 transaction_id=transaction_id,
             )
         else:
             return VerifyResponse(
                 status="failure",
+                verified=False,
                 message="Invalid OTP. You have 1 attempt remaining.",
                 transaction_id=transaction_id,
             )
 
-    # Success
+    # Success — clear attempt counter
+    rcache.store.pop(f"otp_attempts_{transaction_id}", None)
     tx.otp_verified = True
     tx.decision = "ALLOW"
     db.add(tx)
@@ -114,6 +115,7 @@ def verify_otp(
 
     return VerifyResponse(
         status="success",
+        verified=True,
         message="OTP verified. Transaction approved.",
         transaction_id=transaction_id,
     )

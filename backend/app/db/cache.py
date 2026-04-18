@@ -46,8 +46,18 @@ class VelocityCache:
         
         if user_id not in self.store:
             return 0
-            
+
         self.store[user_id] = [t for t in self.store[user_id] if t > cutoff]
         return len(self.store[user_id])
+
+    def clear(self, user_id: str) -> None:
+        """Clear velocity history for a user (used by reset-demo and tests)."""
+        with self._lock:
+            self.store.pop(user_id, None)
+
+    def clear_all(self) -> None:
+        """Clear all users' velocity history."""
+        with self._lock:
+            self.store.clear()
 
 rcache = VelocityCache()

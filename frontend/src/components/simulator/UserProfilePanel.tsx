@@ -1,6 +1,9 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, Clock, ShoppingBag, TrendingUp } from 'lucide-react'
+import { User, Clock, ShoppingBag, TrendingUp, Database, MapPin } from 'lucide-react'
+import axios from 'axios'
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000/api/v1'
 
 interface PersonaProfile {
   userId: string
@@ -26,6 +29,17 @@ const PERSONAS: Record<string, PersonaProfile> = {
     activeHours: 'Daytime (9AM–8PM)',
     avgAmountNum: 350,
   },
+  demo_amit: {
+    userId: 'demo_amit',
+    displayName: 'Amit',
+    avatar: 'A',
+    badge: 'Mid Spender',
+    badgeColor: '#3B82F6',
+    avgSpend: '₹2,500',
+    category: 'Dining / Transport',
+    activeHours: 'Any time',
+    avgAmountNum: 2500,
+  },
   demo_mehta: {
     userId: 'demo_mehta',
     displayName: 'Mehta',
@@ -36,6 +50,17 @@ const PERSONAS: Record<string, PersonaProfile> = {
     category: 'Electronics / Travel',
     activeHours: 'Any time',
     avgAmountNum: 18000,
+  },
+  demo_sarah: {
+    userId: 'demo_sarah',
+    displayName: 'Sarah',
+    avatar: 'S',
+    badge: 'Frequent Buyer',
+    badgeColor: '#F59E0B',
+    avgSpend: '₹1,500',
+    category: 'Online / Retail',
+    activeHours: 'Daytime',
+    avgAmountNum: 1500,
   },
 }
 
@@ -63,15 +88,28 @@ const decisionEmoji: Record<string, string> = {
 }
 
 const UserProfilePanel: React.FC<UserProfilePanelProps> = ({ selectedUser, onUserChange, lastDecision }) => {
+  const [liveProfile, setLiveProfile] = useState<any>(null)
   const profile = PERSONAS[selectedUser] || PERSONAS['demo_rahul']
-  const otherUser = selectedUser === 'demo_rahul' ? 'demo_mehta' : 'demo_rahul'
-  const otherProfile = PERSONAS[otherUser]
+
+  // Fetch live Welford's profile data whenever a user is selected or a transaction completes
+  useEffect(() => {
+    axios.get(`${BACKEND_URL}/user-profile?user_id=${selectedUser}`)
+      .then(res => setLiveProfile(res.data))
+      .catch(err => console.error("Could not fetch profile:", err))
+  }, [selectedUser, lastDecision])
 
   // Show contrast when: we have a lastDecision AND the amounts involved are ₹20k-level
   const showContrast =
     lastDecision &&
     lastDecision.amount >= 15000 &&
     lastDecision.userId !== selectedUser
+
+  // Override static values with live db values if fetched
+  const displayAvg = liveProfile ? `₹${liveProfile.avg_amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : profile.avgSpend
+  const displayTxnCount = liveProfile ? `${liveProfile.transaction_count} successful` : '—'
+  const displayLocations = liveProfile && liveProfile.frequent_locations.length > 0 
+    ? liveProfile.frequent_locations.join(', ') 
+    : 'New Delhi, etc.'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -109,21 +147,37 @@ const UserProfilePanel: React.FC<UserProfilePanelProps> = ({ selectedUser, onUse
 
         {/* Behavioral Baseline */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {[
-            { icon: <TrendingUp size={13} />, label: 'Avg Spend', value: profile.avgSpend },
-            { icon: <ShoppingBag size={13} />, label: 'Category', value: profile.category },
-            { icon: <Clock size={13} />, label: 'Active Hours', value: profile.activeHours },
-          ].map(item => (
-            <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ color: '#555', flexShrink: 0 }}>{item.icon}</div>
-              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', color: '#666', minWidth: '80px' }}>
-                {item.label}
-              </span>
-              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', color: '#D4D4D4', fontWeight: 500 }}>
-                {item.value}
-              </span>
-            </div>
-          ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ color: '#555', flexShrink: 0 }}><TrendingUp size={13} /></div>
+            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', color: '#666', minWidth: '80px' }}>Moving Avg</span>
+            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', color: '#A78BFA', fontWeight: 700 }}>
+              {displayAvg}
+            </span>
+          </div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ color: '#555', flexShrink: 0 }}><Database size={13} /></div>
+            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', color: '#666', minWidth: '80px' }}>Txn Count</span>
+            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', color: '#D4D4D4', fontWeight: 500 }}>
+              {displayTxnCount}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+            <div style={{ color: '#555', flexShrink: 0, marginTop: '2px' }}><MapPin size={13} /></div>
+            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', color: '#666', minWidth: '80px' }}>Known Areas</span>
+            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', color: '#D4D4D4', fontWeight: 500, lineHeight: 1.4 }}>
+              {displayLocations}
+            </span>
+          </div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ color: '#555', flexShrink: 0 }}><Clock size={13} /></div>
+            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', color: '#666', minWidth: '80px' }}>Active Hours</span>
+            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', color: '#D4D4D4', fontWeight: 500 }}>
+              {profile.activeHours}
+            </span>
+          </div>
         </div>
       </div>
 

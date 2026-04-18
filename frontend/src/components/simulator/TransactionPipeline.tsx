@@ -124,12 +124,15 @@ const DataRow: React.FC<{ label: string; value: string; highlight?: string }> = 
 )
 
 const TransactionPipeline: React.FC<TransactionPipelineProps> = ({ stage, requestPayload, apiResult }) => {
-  const fb = apiResult?.feature_breakdown
-  const avgAmount = fb?.find((r: any) => r.name === 'Amount')?.normal
+  const fb = apiResult?.feature_breakdown || []
+  const amtEntry = fb.find((r: any) => r.name === 'Amount')
+  const avgAmount = amtEntry?.normal       // e.g. "₹1,200 avg"
   const currentAmount = requestPayload?.amount as number | undefined
-  const avgNum = parseFloat(String(avgAmount || '0').replace(/[^\d.]/g, ''))
-  const deviation = avgNum > 0 && currentAmount ? (currentAmount / avgNum).toFixed(1) + '×' : '—'
-  const isNewLocation = fb?.find((r: any) => r.name?.toLowerCase().includes('location'))?.status !== 'normal'
+  // Deviation: extract ratio from current string like "₹500 — 2.3× your usual"
+  const deviationMatch = amtEntry?.current?.match(/([\d.]+)×/)
+  const deviation = deviationMatch ? deviationMatch[1] + '×' : '—'
+  const locEntry = fb.find((r: any) => r.name === 'Location')
+  const isNewLocation = locEntry ? locEntry.status !== 'normal' : false
 
   const decisionColor: Record<string, string> = {
     ALLOW: '#10B981',
@@ -173,7 +176,7 @@ const TransactionPipeline: React.FC<TransactionPipelineProps> = ({ stage, reques
       <AnimatePresence>
         {/* Stage 1 — Incoming Request */}
         {stage >= 1 && requestPayload && (
-          <StageBlock index={1} title="Incoming Request" badge="POST /analyze-transaction" delay={0}>
+          <StageBlock key="stage-1" index={1} title="Incoming Request" badge="POST /analyze-transaction" delay={0}>
             <DataRow label="User" value={String(requestPayload.user_id || '').replace('demo_', '').replace('_', ' ')} />
             <DataRow label="Amount" value={`₹${Number(requestPayload.amount || 0).toLocaleString('en-IN')}`} />
             <DataRow label="Location" value={String(requestPayload.location || '')} />
@@ -184,17 +187,17 @@ const TransactionPipeline: React.FC<TransactionPipelineProps> = ({ stage, reques
 
         {/* Stage 2 — Behavioral Analysis */}
         {stage >= 2 && apiResult && (
-          <StageBlock index={2} title="Behavioral Analysis" badge="feature_breakdown" delay={0}>
-            <DataRow label="Avg Spend" value={avgAmount || '—'} />
+          <StageBlock key="stage-2" index={2} title="Behavioral Analysis" badge="feature_breakdown" delay={0}>
+            <DataRow label="User Avg" value={avgAmount || '—'} />
             <DataRow label="This Payment" value={`₹${Number(currentAmount || 0).toLocaleString('en-IN')}`} />
             <DataRow
               label="Deviation"
-              value={deviation}
-              highlight={parseFloat(deviation) > 5 ? '#F59E0B' : '#10B981'}
+              value={deviation !== '—' ? `${deviation} above normal` : 'Normal range'}
+              highlight={deviation !== '—' && parseFloat(deviation) >= 2 ? '#F59E0B' : '#10B981'}
             />
             <DataRow
               label="Location"
-              value={isNewLocation ? 'New — never seen before' : 'Known location'}
+              value={isNewLocation ? `${locEntry?.current || 'New — never seen before'}` : String(requestPayload?.location || '—')}
               highlight={isNewLocation ? '#F59E0B' : '#10B981'}
             />
             <CollapsibleJson label="{ } feature_breakdown" data={apiResult.feature_breakdown} />
@@ -203,7 +206,7 @@ const TransactionPipeline: React.FC<TransactionPipelineProps> = ({ stage, reques
 
         {/* Stage 3 — Risk Computation */}
         {stage >= 3 && apiResult && (
-          <StageBlock index={3} title="Risk Engine" badge="decision" delay={0}>
+          <StageBlock key="stage-3" index={3} title="Risk Engine" badge="decision" delay={0}>
             <DataRow label="Rule Score" value={`${(apiResult.rule_score * 100).toFixed(0)} / 100`} />
             <DataRow label="ML Score" value={`${(apiResult.anomaly_score * 100).toFixed(0)} / 100`} />
             <div style={{

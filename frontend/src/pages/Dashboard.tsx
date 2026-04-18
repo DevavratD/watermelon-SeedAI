@@ -13,12 +13,41 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000/a
 const DEMO_USER = 'demo_rahul'
 
 const PERSONAS = {
+  baseline: {
+    id: 'demo_rahul',
+    name: 'Amount Escalation (Baseline)',
+    scenarios: [
+      { amount: 350, location: 'New Delhi', merchant_type: 'grocery', label: 'Normal Grocery (₹350)' },
+      { amount: 3000, location: 'New Delhi', merchant_type: 'electronics', label: 'New Phone (₹3k - Verify)' },
+      { amount: 15000, location: 'New Delhi', merchant_type: 'jewelry', label: 'Jewelry (₹15k - Block)' },
+    ]
+  },
+  velocity: {
+    id: 'demo_sarah',
+    name: 'Velocity Attack (Carding)',
+    scenarios: [
+      { amount: 101, location: 'Bangalore', merchant_type: 'digital', label: 'Micro-Txn 1' },
+      { amount: 102, location: 'Bangalore', merchant_type: 'digital', label: 'Micro-Txn 2' },
+      { amount: 103, location: 'Bangalore', merchant_type: 'digital', label: 'Micro-Txn 3' },
+      { amount: 104, location: 'Bangalore', merchant_type: 'digital', label: 'Micro-Txn 4' },
+      { amount: 105, location: 'Bangalore', merchant_type: 'digital', label: 'Micro-Txn 5 (Verify)' },
+      { amount: 106, location: 'Bangalore', merchant_type: 'digital', label: 'Micro-Txn 6 (Block)' },
+    ]
+  },
   location: {
     id: 'demo_amit',
     name: 'Location Hopping Attack',
     scenarios: [
       { amount: 2000, location: 'Mumbai', merchant_type: 'dining', label: 'Dinner in Mumbai' },
-      { amount: 2001, location: 'London', merchant_type: 'atm',    label: 'ATM in London (Instant)' },
+      { amount: 2001, location: 'Zurich', merchant_type: 'atm',    label: 'ATM in Zurich (Instant)' },
+    ]
+  },
+  takeover: {
+    id: 'demo_neha',
+    name: 'Account Takeover (Time/Amt)',
+    scenarios: [
+      { amount: 150, location: 'Pune', merchant_type: 'coffee', label: 'Coffee in Pune (Day)' },
+      { amount: 40000, location: 'Pune', merchant_type: 'crypto', label: 'High Txn at 3 AM (Block)' },
     ]
   }
 }

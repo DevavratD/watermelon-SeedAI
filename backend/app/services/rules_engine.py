@@ -23,10 +23,10 @@ logger = logging.getLogger(__name__)
 
 # ── Weights for soft rule scoring ──────────────────────────────────────────────
 WEIGHTS: dict[str, float] = {
-    "amount_deviation": 0.35,
-    "location_change":  0.25,
-    "time_anomaly":     0.20,
-    "frequency_spike":  0.20,
+    "amount_deviation": 0.20,
+    "location_change":  0.60,   # location alone = VERIFY; needs amount/velocity for BLOCK
+    "time_anomaly":     0.00,   # disabled: active_hours UTC mismatch
+    "frequency_spike":  0.20,   # raised to ensure velocity + location = BLOCK
 }
 
 # Normalisation ceilings — values at or above these map to score=1.0
@@ -73,12 +73,16 @@ class RulesEngine:
             return True, reason
 
         # Condition 2: Extreme velocity
-        if f.txn_count_1h > 10:
+        if f.txn_count_1h > 5:
             reason = (
                 f"Hard block: extreme velocity — "
                 f"{f.txn_count_1h} transactions in last hour"
             )
             return True, reason
+
+        # Condition 3: Excessive amounts
+        if f.amount_to_avg_ratio >= 10.0:
+            return True, f"Hard block: Extreme transaction amount ({f.amount_to_avg_ratio:.1f}x average)"
 
         return False, ""
 

@@ -20,10 +20,11 @@ def fuse_scores(rule_score: float, anomaly_score: float) -> float:
     Combine rules-based and ML scores into a single deterministic risk score [0–100].
 
     Weights:
-        60% rule_score  — interpretable, auditable, human-designed
-        40% anomaly_score — ML-driven pattern detection
+        85% rule_score    — interpretable, auditable, primary signal
+        15% anomaly_score — ML pattern detection (secondary, kept low since
+                            IsolationForest needs more training data to be reliable)
     """
-    fused = (0.60 * rule_score + 0.40 * anomaly_score) * 100
+    fused = (0.85 * rule_score + 0.15 * anomaly_score) * 100
     return round(min(max(fused, 0.0), 100.0), 2)
 
 
@@ -37,7 +38,7 @@ def make_decision(risk_score: float) -> str:
     """
     if risk_score >= 75.0:
         return "BLOCK"
-    if risk_score < 40.0:
+    if risk_score < 45.0:
         return "ALLOW"
     return "VERIFY"
 

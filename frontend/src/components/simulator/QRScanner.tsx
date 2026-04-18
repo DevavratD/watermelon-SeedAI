@@ -12,7 +12,21 @@ interface QRScannerProps {
 
 const DemoScenarioGrid: React.FC<QRScannerProps> = ({ userId, onScan }) => {
   const [loadingScenario, setLoadingScenario] = useState<string | null>(null)
-  const [manualLocation, setManualLocation] = useState('Mumbai')
+  const [resetStatus, setResetStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  const [customLocation, setCustomLocation] = useState('Mumbai')
+
+  const handleResetDemo = async () => {
+    setResetStatus('loading')
+    try {
+      await axios.post(`${BACKEND_URL}/reset-demo`)
+      setResetStatus('done')
+      setTimeout(() => setResetStatus('idle'), 2000)
+    } catch {
+      setResetStatus('error')
+      setTimeout(() => setResetStatus('idle'), 2000)
+    }
+  }
+
 
   const handleScenario = async (id: string, payload: any, needsVelocity = false) => {
     setLoadingScenario(id)
@@ -112,40 +126,62 @@ const DemoScenarioGrid: React.FC<QRScannerProps> = ({ userId, onScan }) => {
         ))}
       </div>
 
-      {/* Advanced Controls */}
-      <div style={{ marginTop: '32px', borderTop: '1px solid #1a1a1a', paddingTop: '24px' }}>
-        <p style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', color: '#666', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '14px' }}>🛠</span> Advanced (optional)
+      {/* Custom Injection */}
+      <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #1a1a1a' }}>
+        <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '13px', fontWeight: 600, color: '#A78BFA', margin: '0 0 12px 0' }}>
+          🛠 Advanced (Custom Location)
         </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#0A0A0A', border: '1px solid #1a1a1a', borderRadius: '10px', padding: '8px 12px' }}>
-             <span style={{ color: '#888', fontSize: '12px', fontFamily: "'Inter', sans-serif" }}>Location</span>
-             <select 
-               value={manualLocation} 
-               onChange={e => setManualLocation(e.target.value)}
-               style={{ background: 'transparent', border: 'none', color: '#E5E5E5', fontFamily: "'Inter', sans-serif", fontSize: '13px', outline: 'none', cursor: 'pointer', textAlign: 'right' }}
-             >
-                <option value="New Delhi">New Delhi</option>
-                <option value="Mumbai">Mumbai</option>
-                <option value="Dubai">Dubai</option>
-                <option value="Zurich, Switzerland">Zurich</option>
-             </select>
-          </div>
-          
-          <motion.button 
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => onScan({ merchant: 'Custom Merchant', location: manualLocation, merchant_id: 'merch_custom', category: 'retail' })}
-            style={{ 
-              background: 'transparent', border: '1px solid #2a2a2a', color: '#A0A0A0', 
-              padding: '12px', borderRadius: '10px', fontFamily: "'Space Grotesk', sans-serif", 
-              fontSize: '13px', cursor: 'pointer', width: '100%' 
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <select 
+            value={customLocation}
+            onChange={e => setCustomLocation(e.target.value)}
+            style={{
+              flex: 1, background: '#0D0D0D', border: '1px solid #2a2a2a', borderRadius: '8px',
+              color: '#F5F5F5', fontFamily: "'Inter', sans-serif", fontSize: '12px', padding: '8px 12px',
+              outline: 'none', cursor: 'pointer'
             }}
           >
-            Launch Injection ➔
+            <option value="Mumbai">Mumbai (Known)</option>
+            <option value="New Delhi">New Delhi (Known)</option>
+            <option value="Zurich, Switzerland">Zurich, Switzerland (Unknown)</option>
+            <option value="London, UK">London, UK (Unknown)</option>
+            <option value="Bangalore">Bangalore (Unknown)</option>
+          </select>
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => handleScenario('custom', { merchant: 'Manual Entry', location: customLocation, merchant_id: 'custom', category: 'retail' })}
+            style={{
+              background: '#222', border: '1px solid #333', borderRadius: '8px', color: '#E5E5E5',
+              padding: '8px 16px', fontFamily: "'Space Grotesk', sans-serif", fontSize: '12px', fontWeight: 600,
+              cursor: 'pointer', transition: 'all 0.2s'
+            }}
+          >
+            Launch ➔
           </motion.button>
         </div>
       </div>
+
+      {/* Reset */}
+      <motion.button
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={handleResetDemo}
+        disabled={resetStatus === 'loading'}
+        style={{
+          marginTop: '20px',
+          width: '100%', padding: '9px',
+          background: 'transparent',
+          border: `1px solid ${resetStatus === 'done' ? '#10B98155' : resetStatus === 'error' ? '#EF444455' : '#1e1e1e'}`,
+          borderRadius: '8px',
+          color: resetStatus === 'done' ? '#10B981' : resetStatus === 'error' ? '#EF4444' : '#3a3a3a',
+          fontFamily: "'Inter', sans-serif", fontSize: '11px',
+          cursor: resetStatus === 'loading' ? 'wait' : 'pointer',
+          letterSpacing: '0.03em',
+        }}
+      >
+        {resetStatus === 'loading' ? 'Resetting profiles...' : resetStatus === 'done' ? '✓ Profiles reset for demo' : resetStatus === 'error' ? '✗ Reset failed' : '↺ Reset demo profiles'}
+      </motion.button>
     </div>
   )
 }

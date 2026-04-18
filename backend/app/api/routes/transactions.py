@@ -75,122 +75,6 @@ def _analyze_transaction(
         logger.info(f"Idempotent return for transaction {tx.transaction_id}")
         return _tx_to_response(existing)
 
-    # ── [1] Demo Lock Priority ────────────────────────────────────────────────
-    if tx.user_id.startswith("demo_"):
-        
-        # 1. Standard Amount Escalation (Low Spender)
-        if tx.user_id == "demo_rahul":
-            if tx.amount <= 500:
-                demo_decision, demo_risk = "ALLOW", 12.0
-            elif 2500 <= tx.amount <= 4000:
-                demo_decision, demo_risk = "VERIFY", 65.0
-            else:
-                demo_decision, demo_risk = "BLOCK", 95.0
-                
-        # 1b. Contrast Persona (High Spender)
-        elif tx.user_id == "demo_mehta":
-            if tx.amount >= 20000:
-                # Mehta frequently spends high amounts, so just verify or allow
-                demo_decision, demo_risk = "VERIFY", 61.0
-            else:
-                demo_decision, demo_risk = "ALLOW", 8.0
-                
-        # 2. Velocity Attack Simulator
-        elif tx.user_id == "demo_sarah":
-            if tx.amount <= 104:
-                demo_decision, demo_risk = "ALLOW", 20.0 + (tx.amount - 100) * 10
-            elif tx.amount == 105:
-                demo_decision, demo_risk = "VERIFY", 72.0
-            else:
-                demo_decision, demo_risk = "BLOCK", 90.0
-                
-        # 3. Location Hopping Simulator
-        elif tx.user_id == "demo_amit":
-            if tx.amount == 2000:
-                demo_decision, demo_risk = "ALLOW", 15.0
-            else: # 2001
-                demo_decision, demo_risk = "BLOCK", 88.0
-                
-        # 4. Account Takeover (Time + Amount)
-        elif tx.user_id == "demo_neha":
-            if tx.amount == 150:
-                demo_decision, demo_risk = "ALLOW", 10.0
-            else: # 40000 at 3 AM
-                demo_decision, demo_risk = "BLOCK", 98.0
-                
-        # Fallback for unexpected demo profiles
-        else:
-            demo_decision, demo_risk = "ALLOW", 5.0
-
-        demo_rule = min(demo_risk / 100.0, 1.0)
-        demo_ml = demo_rule
-
-        # Pinned baselines per persona — ensures feature_breakdown shows
-        # the correct contrast regardless of accumulated profile history
-        DEMO_BASELINES = {
-            "demo_rahul": 350.0,
-            "demo_mehta": 18000.0,
-            "demo_sarah": 103.0,
-            "demo_amit":  2000.0,
-            "demo_neha":  150.0,
-        }
-        pinned_avg = DEMO_BASELINES.get(tx.user_id, None)
-
-        profile = _behavior_engine.get_or_create_profile(tx.user_id, db)
-        txn_count_1h = _behavior_engine.get_velocity(tx.user_id, tx.timestamp.replace(tzinfo=None) if tx.timestamp.tzinfo else tx.timestamp, db)
-        features = _behavior_engine.compute_features(tx, profile, txn_count_1h)
-
-        # Patch features with pinned avg so deviation reflects the demo persona baseline,
-        # not the accumulated test history in the DB
-        if pinned_avg and pinned_avg > 0:
-            features.amount_to_avg_ratio = tx.amount / pinned_avg
-            features.amount_deviation = max(0.0, features.amount_to_avg_ratio - 1.0)
-
-        reasons = _explain_engine.generate_reasons(features, None, hard_block=False)
-
-        # Use pinned avg so the breakdown always shows a meaningful contrast
-        effective_avg = pinned_avg if pinned_avg is not None else profile.avg_amount
-        feature_breakdown = _explain_engine.generate_breakdown(features, effective_avg, max(profile.transaction_count, 5))
-        
-        otp_val = None
-        otp_gen = None
-        if demo_decision == "VERIFY":
-            otp_val = generate_otp()
-            otp_gen = datetime.utcnow()
-            
-        db_tx = Transaction(
-            transaction_id=tx.transaction_id,
-            user_id=tx.user_id,
-            amount=tx.amount,
-            location=tx.location,
-            merchant_type=tx.merchant_type,
-            timestamp=tx.timestamp.replace(tzinfo=None) if tx.timestamp.tzinfo else tx.timestamp,
-            risk_score=demo_risk,
-            rule_score=demo_rule,
-            anomaly_score=demo_ml,
-            decision=demo_decision,
-            reasons=json.dumps(reasons),
-            otp=otp_val,
-            otp_generated_at=otp_gen,
-            otp_verified=False,
-            created_at=datetime.utcnow(),
-        )
-        db.add(db_tx)
-        db.commit()
-        
-        _behavior_engine.update_profile(profile, tx, db)
-        return TransactionResponse(
-            transaction_id=tx.transaction_id,
-            user_id=tx.user_id,
-            amount=tx.amount,
-            decision=demo_decision,
-            risk_score=demo_risk,
-            rule_score=demo_rule,
-            anomaly_score=demo_ml,
-            reasons=reasons,
-            otp=otp_val,
-            feature_breakdown=feature_breakdown,
-        )
 
     # ── [2] Load user profile ──────────────────────────────────────────────────
     profile = _behavior_engine.get_or_create_profile(tx.user_id, db)
@@ -278,7 +162,8 @@ def _analyze_transaction(
     db.refresh(db_tx)
 
     # ── [10] Update profile (Welford) ──────────────────────────────────────────
-    _behavior_engine.update_profile(profile, tx, db)
+    if decision == "ALLOW":
+        _behavior_engine.update_profile(profile, tx, db)
 
     logger.info(
         f"Transaction {tx.transaction_id} → {decision} "
@@ -491,3 +376,126 @@ def simulate_velocity(
     for _ in range(5):
         rcache.increment(user_id, window_minutes=60)
     return {"status": "success", "message": f"Injected 5 rapid transactions for {user_id}"}
+
+
+@router.post(
+    "/reset-demo",
+    summary="Reset all demo user profiles to clean baselines",
+    description="Resets demo_rahul, demo_amit, demo_mehta, demo_sarah back to clean realistic profiles. Use before a live demo.",
+)
+def reset_demo(db: Session = Depends(get_db)):
+    """
+    Resets all demo user profiles to clean, realistic baselines.
+    Call this before a live demo to ensure consistent behavior.
+    """
+    import json
+
+    DEMO_PROFILES = {
+        "demo_rahul": {
+            "avg_amount": 1200.0,
+            "std_amount": 350.0,
+            "transaction_count": 12,
+            "frequent_locations": json.dumps(["New Delhi", "Mumbai"]),
+            "active_hours": json.dumps([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]),  # IST 9AM-7PM in UTC
+            "baseline_hourly_rate": 2.0,
+        },
+        "demo_amit": {
+            "avg_amount": 800.0,
+            "std_amount": 200.0,
+            "transaction_count": 8,
+            "frequent_locations": json.dumps(["Mumbai", "Pune"]),
+            "active_hours": json.dumps([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]),
+            "baseline_hourly_rate": 2.0,
+        },
+        "demo_mehta": {
+            "avg_amount": 2500.0,
+            "std_amount": 600.0,
+            "transaction_count": 20,
+            "frequent_locations": json.dumps(["New Delhi", "Bengaluru"]),
+            "active_hours": json.dumps([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]),
+            "baseline_hourly_rate": 2.0,
+        },
+        "demo_sarah": {
+            "avg_amount": 500.0,
+            "std_amount": 150.0,
+            "transaction_count": 6,
+            "frequent_locations": json.dumps(["Bangalore"]),
+            "active_hours": json.dumps([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]),
+            "baseline_hourly_rate": 2.0,
+        },
+    }
+
+    reset_count = 0
+    from datetime import datetime
+    from app.models.behavior_profile import UserBehaviorProfile
+
+    for user_id, data in DEMO_PROFILES.items():
+        profile = db.query(UserBehaviorProfile).filter_by(user_id=user_id).first()
+        if profile:
+            profile.avg_amount = data["avg_amount"]
+            profile.std_amount = data["std_amount"]
+            profile.transaction_count = data["transaction_count"]
+            profile.frequent_locations = data["frequent_locations"]
+            profile.active_hours = data["active_hours"]
+            profile.baseline_hourly_rate = data["baseline_hourly_rate"]
+            profile.last_updated = datetime.utcnow()
+            db.add(profile)
+            reset_count += 1
+        else:
+            logger.info(f"reset-demo: profile for {user_id} not found, skipping.")
+
+    db.commit()
+
+    # Also clear velocity cache for all demo users
+    from app.db.cache import rcache
+    for user_id in DEMO_PROFILES:
+        rcache.clear(user_id)
+
+    logger.info(f"reset-demo: reset {reset_count} profiles + cleared velocity cache")
+    return {
+        "status": "success",
+        "profiles_reset": reset_count,
+        "message": f"Reset {reset_count} demo profiles to clean baselines",
+    }
+
+@router.post(
+    "/clear-velocity/{user_id}",
+    summary="Clear velocity cache for a user",
+    description="Clears the in-memory velocity history for a user. Used for test isolation.",
+)
+def clear_velocity(user_id: str):
+    from app.db.cache import rcache
+    rcache.clear(user_id)
+    return {"status": "success", "message": f"Velocity cache cleared for {user_id}"}
+
+
+@router.post(
+    "/feedback/{transaction_id}",
+    summary="Analyst feedback — Confirm Fraud or Mark Safe",
+)
+def submit_feedback(
+    transaction_id: str,
+    is_fraud: bool,
+    db: Session = Depends(get_db),
+):
+    """
+    Records analyst feedback (Confirm Fraud / Mark Safe) against a transaction.
+    Stored in feedback_is_fraud column for model retraining and audit trail.
+    """
+    from app.models.transaction import Transaction
+    tx = db.query(Transaction).filter(Transaction.transaction_id == transaction_id).first()
+    if not tx:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Transaction {transaction_id} not found")
+
+    tx.feedback_is_fraud = is_fraud
+    db.commit()
+
+    label = "Confirmed Fraud" if is_fraud else "Marked Safe"
+    logger.info(f"Analyst feedback: {transaction_id} → {label}")
+    return {
+        "status": "success",
+        "transaction_id": transaction_id,
+        "feedback": label,
+        "message": f"Transaction {transaction_id} {label.lower()} by analyst",
+    }
