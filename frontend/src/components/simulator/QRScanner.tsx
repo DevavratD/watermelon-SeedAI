@@ -132,7 +132,7 @@ const DemoScenarioGrid: React.FC<QRScannerProps> = ({ userId, onScan }) => {
           🛠 Advanced (Custom Location)
         </p>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <select 
+          <select
             value={customLocation}
             onChange={e => setCustomLocation(e.target.value)}
             style={{
@@ -141,11 +141,11 @@ const DemoScenarioGrid: React.FC<QRScannerProps> = ({ userId, onScan }) => {
               outline: 'none', cursor: 'pointer'
             }}
           >
-            <option value="Mumbai">Mumbai (Known)</option>
-            <option value="New Delhi">New Delhi (Known)</option>
-            <option value="Zurich, Switzerland">Zurich, Switzerland (Unknown)</option>
-            <option value="London, UK">London, UK (Unknown)</option>
-            <option value="Bangalore">Bangalore (Unknown)</option>
+            <option value="Mumbai">Mumbai</option>
+            <option value="New Delhi">New Delhi </option>
+            <option value="Zurich, Switzerland">Zurich, Switzerland </option>
+            <option value="London, UK">London, UK </option>
+            <option value="Bangalore">Bangalore </option>
           </select>
           <motion.button
             whileHover={{ scale: 1.02 }}

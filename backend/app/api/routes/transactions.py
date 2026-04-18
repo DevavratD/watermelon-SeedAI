@@ -431,18 +431,21 @@ def reset_demo(db: Session = Depends(get_db)):
 
     for user_id, data in DEMO_PROFILES.items():
         profile = db.query(UserBehaviorProfile).filter_by(user_id=user_id).first()
-        if profile:
-            profile.avg_amount = data["avg_amount"]
-            profile.std_amount = data["std_amount"]
-            profile.transaction_count = data["transaction_count"]
-            profile.frequent_locations = data["frequent_locations"]
-            profile.active_hours = data["active_hours"]
-            profile.baseline_hourly_rate = data["baseline_hourly_rate"]
-            profile.last_updated = datetime.utcnow()
-            db.add(profile)
-            reset_count += 1
-        else:
-            logger.info(f"reset-demo: profile for {user_id} not found, skipping.")
+        if not profile:
+            from app.models.user import User
+            if not db.query(User).filter_by(user_id=user_id).first():
+                db.add(User(user_id=user_id))
+            profile = UserBehaviorProfile(user_id=user_id)
+
+        profile.avg_amount = data["avg_amount"]
+        profile.std_amount = data["std_amount"]
+        profile.transaction_count = data["transaction_count"]
+        profile.frequent_locations = data["frequent_locations"]
+        profile.active_hours = data["active_hours"]
+        profile.baseline_hourly_rate = data["baseline_hourly_rate"]
+        profile.last_updated = datetime.utcnow()
+        db.add(profile)
+        reset_count += 1
 
     db.commit()
 

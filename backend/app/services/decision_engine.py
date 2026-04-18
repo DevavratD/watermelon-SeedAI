@@ -32,11 +32,11 @@ def make_decision(risk_score: float) -> str:
     """
     Apply tiered deterministic decision thresholds.
 
-    < 40  → ALLOW   (low risk, proceed normally)
-    < 75  → VERIFY  (medium risk, require OTP confirmation)
-    >= 75 → BLOCK   (high risk, transaction rejected)
+    < 45  → ALLOW   (low risk, proceed normally)
+    < 85  → VERIFY  (medium risk, require OTP confirmation)
+    >= 85 → BLOCK   (high risk, transaction rejected)
     """
-    if risk_score >= 75.0:
+    if risk_score >= 85.0:
         return "BLOCK"
     if risk_score < 45.0:
         return "ALLOW"
